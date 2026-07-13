@@ -59,6 +59,15 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".alarm.TimeChangeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".alarm.AlarmService"
             android:exported="false"
