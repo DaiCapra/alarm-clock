@@ -19,8 +19,6 @@ class AlarmAdapter(
     private val onPreview: (Alarm) -> Unit
 ) : ListAdapter<Alarm, AlarmAdapter.AlarmViewHolder>(DIFF) {
 
-    private val timeFormat = hhmmFormatter()
-
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AlarmViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_alarm, parent, false)
@@ -44,7 +42,7 @@ class AlarmAdapter(
             label.visibility = if (alarm.label.isEmpty()) View.GONE else View.VISIBLE
 
             if (alarm.snoozeUntil > System.currentTimeMillis()) {
-                val ringsAt = timeFormat.format(java.util.Date(alarm.snoozeUntil))
+                val ringsAt = formatClockTime(alarm.snoozeUntil)
                 days.text = itemView.context.getString(R.string.snoozed_rings_at, ringsAt)
             } else {
                 days.text = formatRepeatDays(alarm.repeatDays)

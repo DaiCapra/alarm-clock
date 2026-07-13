@@ -36,7 +36,7 @@ class AddAlarmActivity : AppCompatActivity() {
     private val viewModel: AddAlarmViewModel by viewModels()
 
     // Working copy of the alarm being edited; the UI mutates this and Save persists it.
-    private var draft = Alarm(hour = 7, minute = 0, repeatDays = ALL_DAYS)
+    private lateinit var draft: Alarm
 
     private lateinit var hourPicker: NumberPicker
     private lateinit var minutePicker: NumberPicker
@@ -66,6 +66,9 @@ class AddAlarmActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_add_alarm)
+
+        // Seeded from the user's last-used defaults; the edit path replaces it.
+        draft = viewModel.newAlarmDraft()
 
         // Route the hardware volume keys to the alarm stream on this screen so
         // the "Alarm" volume popup shows consistently while setting the level.
@@ -105,7 +108,6 @@ class AddAlarmActivity : AppCompatActivity() {
                 bindDraft()
             }
         } else {
-            draft = viewModel.newAlarmDraft()
             bindDraft()
         }
     }
@@ -124,25 +126,23 @@ class AddAlarmActivity : AppCompatActivity() {
     }
 
     private fun setupTimePickers() {
-        hourPicker.minValue = 0
-        hourPicker.maxValue = 23
-        hourPicker.wrapSelectorWheel = true
-        hourPicker.setFormatter { String.format("%02d", it) }
+        hourPicker.setup(max = 23)
+        minutePicker.setup(max = 59)
+    }
 
-        minutePicker.minValue = 0
-        minutePicker.maxValue = 59
-        minutePicker.wrapSelectorWheel = true
-        minutePicker.setFormatter { String.format("%02d", it) }
+    private fun NumberPicker.setup(max: Int) {
+        minValue = 0
+        maxValue = max
+        wrapSelectorWheel = true
+        setFormatter { String.format("%02d", it) }
     }
 
     private fun buildDayChips() {
-        DAY_LABELS.forEachIndexed { index, label ->
-            val chip = Chip(this).apply {
+        DAY_LABELS.forEach { label ->
+            dayChips.addView(Chip(this).apply {
                 text = label
                 isCheckable = true
-                isChecked = true
-            }
-            dayChips.addView(chip)
+            })
         }
     }
 
@@ -189,7 +189,6 @@ class AddAlarmActivity : AppCompatActivity() {
             minute = minutePicker.value,
             label = labelInput.text?.toString().orEmpty(),
             dayChecked = dayChecked,
-            ringtoneUri = draft.ringtoneUri,
             vibrate = vibrateSwitch.isChecked,
             snoozeMinutes = AlarmForm.parseSnoozeMinutes(
                 snoozeInput.text.toString(), draft.snoozeMinutes
@@ -199,9 +198,7 @@ class AddAlarmActivity : AppCompatActivity() {
         viewModel.save(alarm) { nextTrigger ->
             if (nextTrigger != null) {
                 val remaining = nextTrigger - System.currentTimeMillis()
-                Toast.makeText(
-                    this, "Alarm will trigger in ${humanDuration(remaining)}", Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(this, alarmTriggerMessage(remaining), Toast.LENGTH_SHORT).show()
             }
             finish()
         }

@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import com.example.clock.MainActivity
 import com.example.clock.R
 import com.example.clock.data.Alarm
+import com.example.clock.displayLabel
 import com.example.clock.formatClockTime
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -60,7 +61,7 @@ class AlarmScheduler @Inject constructor(
 
     private fun showSnoozeNotification(alarm: Alarm, triggerAt: Long) {
         createSnoozeChannel()
-        val label = alarm.label.ifEmpty { context.getString(R.string.alarm) }
+        val title = "${context.getString(R.string.snoozed)} · ${alarm.displayLabel(context)}"
         val ringsAt = formatClockTime(triggerAt)
         val openApp = PendingIntent.getActivity(
             context, alarm.id, Intent(context, MainActivity::class.java),
@@ -73,14 +74,14 @@ class AlarmScheduler @Inject constructor(
         // clock target into that timebase.
         val chronoBase = SystemClock.elapsedRealtime() + (triggerAt - System.currentTimeMillis())
         val content = RemoteViews(context.packageName, R.layout.notif_snooze).apply {
-            setTextViewText(R.id.snooze_title, "${context.getString(R.string.snoozed)} · $label")
+            setTextViewText(R.id.snooze_title, title)
             setChronometer(R.id.snooze_chrono, chronoBase, null, true)
             setChronometerCountDown(R.id.snooze_chrono, true)
         }
 
         val notification = NotificationCompat.Builder(context, SNOOZE_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("${context.getString(R.string.snoozed)} · $label")
+            .setContentTitle(title)
             .setContentText(context.getString(R.string.rings_at, ringsAt))
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setCustomContentView(content)

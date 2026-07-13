@@ -8,14 +8,14 @@ import com.example.clock.data.Alarm
  */
 object AlarmForm {
 
-    /** @param dayChecked size-7 list, index 0 = Sunday .. index 6 = Saturday. */
+    /** @param dayChecked size-7 list, index 0 = Sunday .. index 6 = Saturday.
+     *  The ringtone is carried over from [base] (the picker mutates the draft). */
     fun buildAlarm(
         base: Alarm,
         hour: Int,
         minute: Int,
         label: String,
         dayChecked: List<Boolean>,
-        ringtoneUri: String?,
         vibrate: Boolean,
         snoozeMinutes: Int,
         volume: Int
@@ -27,7 +27,6 @@ object AlarmForm {
             minute = minute,
             label = label.trim(),
             repeatDays = days,
-            ringtoneUri = ringtoneUri,
             vibrate = vibrate,
             snoozeMinutes = snoozeMinutes,
             volume = volume.coerceIn(0, 100),

@@ -36,7 +36,7 @@ object AlarmSounds {
             // setLooping and setVolume both need API 28; older devices play the
             // ringtone once at the system alarm-stream volume.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                if (looping) isLooping = true
+                isLooping = looping
                 volume = volumePercent.coerceIn(0, 100) / 100f
             }
         }

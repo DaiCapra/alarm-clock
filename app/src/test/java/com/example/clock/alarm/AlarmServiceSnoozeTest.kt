@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Vibrator
 import androidx.test.core.app.ApplicationProvider
+import com.example.clock.awaitUntil
 import com.example.clock.data.Alarm
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -62,12 +63,8 @@ class AlarmServiceSnoozeTest {
      *  Robolectric's between-test SQLite reset. */
     private fun sendSnoozeAndAwaitStop(alarm: Alarm, startId: Int) {
         service.onStartCommand(snoozeIntent(alarm), 0, startId)
-        val deadline = System.currentTimeMillis() + 5_000
-        while (!shadowOf(service).isStoppedBySelf) {
-            if (System.currentTimeMillis() > deadline) {
-                org.junit.Assert.fail("Service did not stop itself after snooze")
-            }
-            Thread.sleep(10)
+        awaitUntil(message = "Service did not stop itself after snooze") {
+            shadowOf(service).isStoppedBySelf
         }
     }
 

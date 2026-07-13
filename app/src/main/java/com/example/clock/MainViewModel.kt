@@ -46,10 +46,12 @@ class MainViewModel @Inject constructor(
 
     val nextAlarm: Flow<NextAlarm?> = combine(alarms, tickerFlow()) { list, _ ->
         val now = System.currentTimeMillis()
-        val soonest = list.filter { it.isEnabled }.minByOrNull { AlarmTiming.nextTrigger(it) }
+        val (soonest, triggerAt) = list.filter { it.isEnabled }
+            .map { it to AlarmTiming.nextTrigger(it, now) }
+            .minByOrNull { it.second }
             ?: return@combine null
         NextAlarm(
-            countdown = formatCountdown(AlarmTiming.nextTrigger(soonest) - now),
+            countdown = formatCountdown(triggerAt - now),
             isSnooze = soonest.snoozeUntil > now
         )
     }
@@ -73,7 +75,7 @@ class MainViewModel @Inject constructor(
                 val active = alarm.copy(isEnabled = true)
                 scheduler.schedule(active)
                 val remaining = AlarmTiming.nextTrigger(active) - System.currentTimeMillis()
-                _scheduledMessage.emit("Alarm will trigger in ${humanDuration(remaining)}")
+                _scheduledMessage.emit(alarmTriggerMessage(remaining))
             } else {
                 scheduler.cancel(alarm)
                 repository.clearSnooze(alarm.id)

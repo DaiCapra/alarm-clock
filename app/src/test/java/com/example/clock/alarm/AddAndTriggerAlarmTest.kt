@@ -82,14 +82,10 @@ class AddAndTriggerAlarmTest {
             assertTrue(
                 serviceIntent.component?.className == AlarmService::class.java.name
             )
-            assertEquals(
-                newId.toInt(),
-                serviceIntent.getIntExtra(AlarmReceiver.EXTRA_ALARM_ID, -1)
-            )
-            assertEquals(
-                "Wake up",
-                serviceIntent.getStringExtra(AlarmReceiver.EXTRA_ALARM_LABEL)
-            )
+            // Deserialize with the production wire-format helper.
+            val delivered = serviceIntent.readAlarm()
+            assertEquals(newId.toInt(), delivered.id)
+            assertEquals("Wake up", delivered.label)
         }
 
         // AlarmReceiver.onReceive kicked off a goAsync coroutine (clearSnooze on

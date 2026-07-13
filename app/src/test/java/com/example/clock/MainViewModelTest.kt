@@ -29,7 +29,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -87,15 +86,6 @@ class MainViewModelTest {
         alarm.copy(id = repository.addAlarm(alarm).toInt())
 
     private fun storedAlarm(id: Int): Alarm? = runBlocking { db.alarmDao().getById(id) }
-
-    /** Real-time poll: the work under test completes on Room/unconfined threads. */
-    private fun awaitUntil(timeoutMs: Long = 5_000, condition: () -> Boolean) {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (!condition()) {
-            if (System.currentTimeMillis() > deadline) fail("Condition not met within ${timeoutMs}ms")
-            Thread.sleep(10)
-        }
-    }
 
     @Test
     fun setEnabled_true_schedulesAndPersists() = runTest {

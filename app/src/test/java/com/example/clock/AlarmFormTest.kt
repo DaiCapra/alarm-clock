@@ -19,9 +19,9 @@ class AlarmFormTest {
     private val base = Alarm(hour = 7, minute = 0)
 
     private fun build(
+        base: Alarm = this.base,
         label: String = "",
         dayChecked: List<Boolean> = allDays,
-        ringtoneUri: String? = null,
         vibrate: Boolean = true,
         snoozeMinutes: Int = 10,
         volume: Int = 100
@@ -31,7 +31,6 @@ class AlarmFormTest {
         minute = 45,
         label = label,
         dayChecked = dayChecked,
-        ringtoneUri = ringtoneUri,
         vibrate = vibrate,
         snoozeMinutes = snoozeMinutes,
         volume = volume
@@ -58,14 +57,14 @@ class AlarmFormTest {
     }
 
     @Test
-    fun ringtone_uri_isCarried() {
+    fun ringtone_uri_isCarriedFromBase() {
         val uri = "content://media/internal/audio/media/42"
-        assertEquals(uri, build(ringtoneUri = uri).ringtoneUri)
+        assertEquals(uri, build(base = base.copy(ringtoneUri = uri)).ringtoneUri)
     }
 
     @Test
     fun ringtone_null_meansDefault() {
-        assertNull(build(ringtoneUri = null).ringtoneUri)
+        assertNull(build(base = base.copy(ringtoneUri = null)).ringtoneUri)
     }
 
     @Test
@@ -129,11 +128,7 @@ class AlarmFormTest {
 
     @Test
     fun buildAlarm_clearsPendingSnooze() {
-        val snoozed = base.copy(snoozeUntil = 12345L)
-        val rebuilt = AlarmForm.buildAlarm(
-            base = snoozed, hour = 6, minute = 45, label = "", dayChecked = allDays,
-            ringtoneUri = null, vibrate = true, snoozeMinutes = 10, volume = 100
-        )
+        val rebuilt = build(base = base.copy(snoozeUntil = 12345L))
         assertEquals("Editing an alarm must drop its stale snooze", 0L, rebuilt.snoozeUntil)
     }
 

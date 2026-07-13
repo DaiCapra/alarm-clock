@@ -46,16 +46,4 @@ class AlarmReceiver : BroadcastReceiver() {
             scheduler.schedule(alarm)
         }
     }
-
-    companion object {
-        const val EXTRA_ALARM_ID = "extra_alarm_id"
-        const val EXTRA_ALARM_LABEL = "extra_alarm_label"
-        const val EXTRA_HOUR = "extra_hour"
-        const val EXTRA_MINUTE = "extra_minute"
-        const val EXTRA_REPEAT_DAYS = "extra_repeat_days"
-        const val EXTRA_RINGTONE = "extra_ringtone"
-        const val EXTRA_VIBRATE = "extra_vibrate"
-        const val EXTRA_SNOOZE_MINUTES = "extra_snooze_minutes"
-        const val EXTRA_VOLUME = "extra_volume"
-    }
 }

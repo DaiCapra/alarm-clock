@@ -11,10 +11,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.clock.R
+import com.example.clock.alarmTriggerMessage
 import com.example.clock.applySystemBarInsetsAsPadding
 import com.example.clock.data.Alarm
+import com.example.clock.displayLabel
 import com.example.clock.hhmmFormatter
-import com.example.clock.humanDuration
 import com.example.clock.tickerFlow
 import com.google.android.material.button.MaterialButton
 import dagger.hilt.android.AndroidEntryPoint
@@ -45,11 +46,10 @@ class AlarmActivity : AppCompatActivity() {
         alarm = intent.readAlarm()
 
         val time: TextView = findViewById(R.id.alarm_time)
-        val labelView: TextView = findViewById(R.id.alarm_label)
         val snooze: MaterialButton = findViewById(R.id.snooze_button)
         val dismiss: MaterialButton = findViewById(R.id.dismiss_button)
 
-        labelView.text = alarm.label.ifEmpty { getString(R.string.alarm) }
+        showLabel()
 
         snooze.setOnClickListener { onSnooze() }
         dismiss.setOnClickListener { onDismiss() }
@@ -74,8 +74,11 @@ class AlarmActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         alarm = intent.readAlarm()
-        findViewById<TextView>(R.id.alarm_label).text =
-            alarm.label.ifEmpty { getString(R.string.alarm) }
+        showLabel()
+    }
+
+    private fun showLabel() {
+        findViewById<TextView>(R.id.alarm_label).text = alarm.displayLabel(this)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -91,14 +94,13 @@ class AlarmActivity : AppCompatActivity() {
     private fun onSnooze() {
         // Route through the service so the snooze schedule + persisted snoozeUntil
         // happen in one place (see AlarmService.ACTION_SNOOZE).
-        val minutes = alarm.snoozeMinutes
         startService(
             Intent(this, AlarmService::class.java)
                 .apply { action = AlarmService.ACTION_SNOOZE }
                 .putAlarm(alarm)
         )
         Toast.makeText(
-            this, "Alarm will trigger in ${humanDuration(minutes * 60_000L)}", Toast.LENGTH_SHORT
+            this, alarmTriggerMessage(alarm.snoozeMinutes * 60_000L), Toast.LENGTH_SHORT
         ).show()
         finish()
     }

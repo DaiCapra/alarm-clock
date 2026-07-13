@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.graphics.Typeface
+import android.media.Ringtone
 import android.os.Build
 import android.text.Spannable
 import android.text.SpannableString
@@ -18,6 +19,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import com.example.clock.R
 import com.example.clock.audio.AlarmSounds
+import com.example.clock.displayLabel
 import com.example.clock.formatClockTime
 import com.example.clock.data.Alarm
 import com.example.clock.data.AlarmRepository
@@ -43,7 +45,7 @@ class AlarmService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    private var ringtone: android.media.Ringtone? = null
+    private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
 
     // Ids of alarms currently ringing. The first one owns the single sound +
@@ -61,27 +63,21 @@ class AlarmService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_DISMISS) {
-            stopRinging()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_DISMISS -> stopRinging()
+            ACTION_SNOOZE -> snoozeAndStop(intent.readAlarm())
+            ACTION_REFRESH ->
+                // The ringing screen is now showing (app foregrounded), so re-post
+                // the notification silently — drops the heads-up popup.
+                primaryAlarm?.let {
+                    startForeground(NOTIFICATION_ID, buildNotification(it, activeAlarmIds.size))
+                }
+            else -> intent?.let { startRinging(it.readAlarm()) }
         }
+        return START_NOT_STICKY
+    }
 
-        if (intent?.action == ACTION_SNOOZE) {
-            snoozeAndStop(intent.readAlarm())
-            return START_NOT_STICKY
-        }
-
-        if (intent?.action == ACTION_REFRESH) {
-            // The ringing screen is now showing (app foregrounded), so re-post
-            // the notification silently — drops the heads-up popup.
-            primaryAlarm?.let {
-                startForeground(NOTIFICATION_ID, buildNotification(it, activeAlarmIds.size))
-            }
-            return START_NOT_STICKY
-        }
-
-        val alarm = intent?.readAlarm() ?: return START_NOT_STICKY
-
+    private fun startRinging(alarm: Alarm) {
         val firstAlarm = activeAlarmIds.isEmpty()
         activeAlarmIds.add(alarm.id)
 
@@ -97,8 +93,6 @@ class AlarmService : Service() {
             val primary = primaryAlarm ?: alarm
             startForeground(NOTIFICATION_ID, buildNotification(primary, activeAlarmIds.size))
         }
-
-        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
@@ -108,10 +102,14 @@ class AlarmService : Service() {
         scope.cancel()
     }
 
-    private fun stopRinging() {
+    private fun clearSession() {
         activeAlarmIds.clear()
         primaryAlarm = null
         ringingState.clear()
+    }
+
+    private fun stopRinging() {
+        clearSession()
         stopSelf()
     }
 
@@ -119,9 +117,7 @@ class AlarmService : Service() {
      *  action and the ringing screen). */
     private fun snoozeAndStop(alarm: Alarm) {
         val triggerAt = scheduler.scheduleSnooze(alarm, alarm.snoozeMinutes)
-        activeAlarmIds.clear()
-        primaryAlarm = null
-        ringingState.clear()
+        clearSession()
         ringtone?.stop()
         vibrator?.cancel()
         // Persist ahead of the scope being cancelled, then stop.
@@ -167,11 +163,7 @@ class AlarmService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = if (activeCount > 1) {
-            "$activeCount alarms"
-        } else {
-            alarm.label.ifEmpty { getString(R.string.alarm) }
-        }
+        val title = if (activeCount > 1) "$activeCount alarms" else alarm.displayLabel(this)
         val time = formatClockTime(alarm.hour, alarm.minute)
         val timeText = SpannableString(time).apply {
             setSpan(StyleSpan(Typeface.BOLD), 0, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
