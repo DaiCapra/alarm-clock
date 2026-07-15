@@ -252,6 +252,12 @@ class AddAlarmActivity : AppCompatActivity() {
     /** Fold the widgets whose value is only read at save time into the draft,
      *  then persist it. */
     private fun onSave() {
+        // A NumberPicker keeps typed digits in an internal EditText and only
+        // commits them to value on focus loss. Without this, typing a time and
+        // tapping Save straight after stores the *previous* time, silently.
+        hourPicker.clearFocus()
+        minutePicker.clearFocus()
+
         val dayChecked = (0 until 7).map { (dayChips.getChildAt(it) as Chip).isChecked }
         viewModel.update { draft ->
             AlarmForm.buildAlarm(

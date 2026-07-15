@@ -3,8 +3,12 @@ package com.example.clock
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
@@ -33,6 +37,20 @@ class MainActivity : AppCompatActivity() {
     private val viewModel: MainViewModel by viewModels()
 
     private lateinit var preview: RingtonePreview
+    private lateinit var adapter: AlarmAdapter
+
+    /**
+     * Rows format their time when they bind, and flipping the system 12/24-hour
+     * setting changes no [Alarm], so DiffUtil rebinds nothing — the list would
+     * sit there showing "8:00 PM" under a header already reading "20:00" until
+     * something unrelated happened to rebind it. The clocks above re-check the
+     * setting on every tick; the list has to be told.
+     */
+    private val timeFormatObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            adapter.notifyItemRangeChanged(0, adapter.itemCount)
+        }
+    }
 
     private val notificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -58,7 +76,7 @@ class MainActivity : AppCompatActivity() {
 
         preview = RingtonePreview(this, list, RingtonePreview.SAMPLE_CLIP_MS)
 
-        val adapter = AlarmAdapter(
+        adapter = AlarmAdapter(
             onToggle = { alarm, enabled -> viewModel.setEnabled(alarm, enabled) },
             onDelete = { alarm -> confirmDelete(alarm) },
             onEdit = { alarm -> editAlarm(alarm) },
@@ -113,8 +131,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        contentResolver.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.TIME_12_24), false, timeFormatObserver
+        )
+    }
+
     override fun onStop() {
         super.onStop()
+        contentResolver.unregisterContentObserver(timeFormatObserver)
         // Also covers a real alarm arriving mid-preview: it launches the ringing
         // screen, this stops, and the sample can't play over the alarm.
         preview.stop()
