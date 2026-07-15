@@ -89,6 +89,8 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             scheduler.cancel(alarm)
             repository.deleteAlarm(alarm)
+            // If this alarm is ringing right now, stop it too.
+            if (ringingState.current.value?.id == alarm.id) scheduler.dismissRinging()
         }
     }
 }

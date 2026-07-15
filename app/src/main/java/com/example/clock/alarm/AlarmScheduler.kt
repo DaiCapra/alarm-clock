@@ -122,8 +122,10 @@ class AlarmScheduler @Inject constructor(
         val pendingIntent = pendingIntent(alarm.id, intent)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
-            // Fall back to inexact alarm if exact permission not granted
-            alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            // No exact-alarm permission: setAndAllowWhileIdle is the best
+            // remaining option — inexact, but still delivered during Doze
+            // (plain set() is deferred to the next maintenance window).
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
         } else {
             alarmManager.setAlarmClock(
                 AlarmManager.AlarmClockInfo(triggerAtMillis, pendingIntent),

@@ -35,15 +35,21 @@ class AlarmReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                if (alarm.id >= 0) repository.clearSnooze(alarm.id)
+                if (alarm.id >= 0) {
+                    repository.clearSnooze(alarm.id)
+                    // Queue a repeating alarm's next occurrence from the stored
+                    // record, not the intent copy: a snooze re-fire carries
+                    // repeatDays = 0 (snoozes are armed as one-shots), and its
+                    // PendingIntent shares the alarm's request code — so the
+                    // next occurrence armed at the original fire was replaced
+                    // and must be re-armed here.
+                    repository.getAlarmById(alarm.id)
+                        ?.takeIf { it.isEnabled && it.repeatDays != 0 }
+                        ?.let { scheduler.schedule(it.copy(snoozeUntil = 0)) }
+                }
             } finally {
                 pending.finish()
             }
-        }
-
-        // Repeating alarm: queue the next occurrence.
-        if (alarm.repeatDays != 0) {
-            scheduler.schedule(alarm)
         }
     }
 }

@@ -23,17 +23,34 @@
         android:id="@+id/snooze_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="24dp"
         android:letterSpacing="0.1"
         android:text="@string/snoozed"
         android:textAllCaps="true"
         android:textColor="?attr/colorPrimary"
-        android:textSize="32sp"
+        android:textSize="22sp"
         android:textStyle="bold"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/current_time"
+        tools:visibility="visible" />
+
+    <TextView
+        android:id="@+id/next_alarm_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:letterSpacing="0.1"
+        android:text="@string/next_alarm_label"
+        android:textAllCaps="true"
+        android:textColor="?android:attr/textColorSecondary"
+        android:textSize="12sp"
+        android:visibility="invisible"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/snooze_label"
+        app:layout_goneMarginTop="24dp"
         tools:visibility="visible" />
 
     <ImageView
@@ -43,7 +60,7 @@
         android:layout_marginEnd="8dp"
         android:importantForAccessibility="no"
         android:src="@android:drawable/ic_lock_idle_alarm"
-        android:visibility="gone"
+        android:visibility="invisible"
         app:layout_constraintBottom_toBottomOf="@id/next_alarm"
         app:layout_constraintEnd_toStartOf="@id/next_alarm"
         app:layout_constraintHorizontal_chainStyle="packed"
@@ -59,10 +76,10 @@
         android:layout_marginTop="4dp"
         android:textColor="?android:attr/textColorSecondary"
         android:textSize="24sp"
-        android:visibility="gone"
+        android:visibility="invisible"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/next_alarm_icon"
-        app:layout_constraintTop_toBottomOf="@id/snooze_label"
+        app:layout_constraintTop_toBottomOf="@id/next_alarm_label"
         tools:text="5:03:12"
         tools:visibility="visible" />
 
@@ -72,8 +89,8 @@
         android:layout_height="0dp"
         android:layout_marginTop="24dp"
         android:clipToPadding="false"
-        android:paddingBottom="16dp"
-        app:layout_constraintBottom_toTopOf="@id/add_alarm_button"
+        android:paddingBottom="88dp"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/next_alarm"
@@ -91,16 +108,14 @@
         app:layout_constraintStart_toStartOf="@id/alarm_list"
         app:layout_constraintTop_toTopOf="@id/alarm_list" />
 
-    <com.google.android.material.button.MaterialButton
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/add_alarm_button"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="16dp"
-        android:paddingVertical="14dp"
-        android:text="@string/add_alarm"
-        app:icon="@android:drawable/ic_input_add"
+        android:contentDescription="@string/add_alarm"
+        android:src="@android:drawable/ic_input_add"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

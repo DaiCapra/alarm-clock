@@ -22,8 +22,8 @@ import com.example.clock.alarm.AlarmActivity
 import com.example.clock.alarm.AlarmService
 import com.example.clock.alarm.putAlarm
 import com.example.clock.data.Alarm
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -49,10 +49,11 @@ class MainActivity : AppCompatActivity() {
         val currentTime: TextView = findViewById(R.id.current_time)
         val nextAlarm: TextView = findViewById(R.id.next_alarm)
         val nextAlarmIcon: View = findViewById(R.id.next_alarm_icon)
+        val nextAlarmLabel: View = findViewById(R.id.next_alarm_label)
         val snoozeLabel: TextView = findViewById(R.id.snooze_label)
         val emptyView: View = findViewById(R.id.empty_view)
         val list: RecyclerView = findViewById(R.id.alarm_list)
-        val addButton: MaterialButton = findViewById(R.id.add_alarm_button)
+        val addButton: FloatingActionButton = findViewById(R.id.add_alarm_button)
 
         val adapter = AlarmAdapter(
             onToggle = { alarm, enabled -> viewModel.setEnabled(alarm, enabled) },
@@ -89,9 +90,12 @@ class MainActivity : AppCompatActivity() {
                 launch {
                     viewModel.nextAlarm.collectLatest { info ->
                         nextAlarm.text = info?.countdown
-                        val visible = if (info == null) View.GONE else View.VISIBLE
+                        // INVISIBLE, not GONE — reserves the row's height so the
+                        // list below doesn't jump when an alarm is toggled off.
+                        val visible = if (info == null) View.INVISIBLE else View.VISIBLE
                         nextAlarm.visibility = visible
                         nextAlarmIcon.visibility = visible
+                        nextAlarmLabel.visibility = visible
                         snoozeLabel.visibility =
                             if (info?.isSnooze == true) View.VISIBLE else View.GONE
                     }

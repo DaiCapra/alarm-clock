@@ -1,21 +1,13 @@
 package com.example.clock.alarm
 
 import android.app.AlarmManager
-import android.content.Context
-import android.content.Intent
-import android.os.Vibrator
-import androidx.test.core.app.ApplicationProvider
-import com.example.clock.awaitUntil
 import com.example.clock.data.Alarm
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
-import org.junit.After
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -26,47 +18,7 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
-class AlarmServiceSnoozeTest {
-
-    private lateinit var context: Context
-    private lateinit var service: AlarmService
-
-    private lateinit var controller: org.robolectric.android.controller.ServiceController<AlarmService>
-
-    @Before
-    fun setUp() {
-        context = ApplicationProvider.getApplicationContext()
-        controller = Robolectric.buildService(AlarmService::class.java).create()
-        service = controller.get()
-    }
-
-    @After
-    fun tearDown() {
-        // Cancels the service scope so the snooze-persist coroutine can't outlive
-        // the test and crash on Robolectric's between-test SQLite reset.
-        controller.destroy()
-    }
-
-    private fun startIntent(alarm: Alarm) =
-        Intent(context, AlarmService::class.java).putAlarm(alarm)
-
-    private fun snoozeIntent(alarm: Alarm) =
-        Intent(context, AlarmService::class.java)
-            .apply { action = AlarmService.ACTION_SNOOZE }
-            .putAlarm(alarm)
-
-    private fun refreshIntent() =
-        Intent(context, AlarmService::class.java).apply { action = AlarmService.ACTION_REFRESH }
-
-    /** Snooze persists snoozeUntil on a background coroutine, then stopSelf().
-     *  Await that stop so the coroutine can't outlive the test and crash on
-     *  Robolectric's between-test SQLite reset. */
-    private fun sendSnoozeAndAwaitStop(alarm: Alarm, startId: Int) {
-        service.onStartCommand(snoozeIntent(alarm), 0, startId)
-        awaitUntil(message = "Service did not stop itself after snooze") {
-            shadowOf(service).isStoppedBySelf
-        }
-    }
+class AlarmServiceSnoozeTest : AlarmServiceTestBase() {
 
     @Test
     fun snooze_registersReFireWithAlarmManager() {
@@ -98,16 +50,14 @@ class AlarmServiceSnoozeTest {
     fun vibrateEnabled_startsVibration() {
         service.onStartCommand(startIntent(Alarm(id = 1, hour = 7, minute = 0, vibrate = true)), 0, 1)
 
-        val vibrator = context.getSystemService(Vibrator::class.java)
-        assertTrue(shadowOf(vibrator).isVibrating)
+        assertTrue(shadowVibrator().isVibrating)
     }
 
     @Test
     fun vibrateDisabled_doesNotVibrate() {
         service.onStartCommand(startIntent(Alarm(id = 1, hour = 7, minute = 0, vibrate = false)), 0, 1)
 
-        val vibrator = context.getSystemService(Vibrator::class.java)
-        assertFalse(shadowOf(vibrator).isVibrating)
+        assertFalse(shadowVibrator().isVibrating)
     }
 
     @Test

@@ -1,14 +1,9 @@
 package com.example.clock.alarm
 
-import android.content.Context
-import android.content.Intent
-import androidx.test.core.app.ApplicationProvider
 import com.example.clock.data.Alarm
 import org.junit.Assert.assertEquals
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -18,22 +13,7 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
-class AlarmServiceConcurrentTest {
-
-    private lateinit var context: Context
-    private lateinit var service: AlarmService
-
-    @Before
-    fun setUp() {
-        context = ApplicationProvider.getApplicationContext()
-        service = Robolectric.buildService(AlarmService::class.java).create().get()
-    }
-
-    private fun startIntent(alarm: Alarm) =
-        Intent(context, AlarmService::class.java).putAlarm(alarm)
-
-    private fun dismissIntent() =
-        Intent(context, AlarmService::class.java).apply { action = AlarmService.ACTION_DISMISS }
+class AlarmServiceConcurrentTest : AlarmServiceTestBase() {
 
     @Test
     fun twoAlarmsAtSameTime_startSoundOnlyOnce() {

@@ -65,4 +65,31 @@ object AlarmSounds {
             vibrator.vibrate(pattern, 0)
         }
     }
+
+    /** Gentle double-pulse confirming a snooze registered. Returns the pattern
+     *  length in ms so the caller knows how long to stay alive. */
+    fun playSnoozeConfirmation(vibrator: Vibrator): Long {
+        val timings = longArrayOf(0, 80, 120, 80)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val amplitudes = intArrayOf(0, 140, 0, 140)
+            vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(timings, -1)
+        }
+        return timings.sum()
+    }
+
+    /** Single long strong buzz confirming a dismiss registered. Returns the
+     *  pattern length in ms so the caller knows how long to stay alive. */
+    fun playDismissConfirmation(vibrator: Vibrator): Long {
+        val millis = 400L
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(millis, 255))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(millis)
+        }
+        return millis
+    }
 }

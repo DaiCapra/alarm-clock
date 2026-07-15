@@ -5,9 +5,11 @@
     <string name="alarm">Alarm</string>
     <string name="snooze">Snooze</string>
     <string name="snoozed">Snoozed</string>
+    <string name="next_alarm_label">Next alarm</string>
     <string name="rings_at">Rings at %1$s</string>
     <string name="snoozed_rings_at">Snoozed · rings %1$s</string>
     <string name="dismiss">Dismiss</string>
+    <string name="hold_to_dismiss">Hold to dismiss</string>
     <string name="alarm_menu">Alarm options</string>
     <string name="settings">Settings</string>
     <string name="preview">Preview</string>

@@ -39,6 +39,21 @@
         android:text="@string/snooze"
         android:textSize="28sp"
         app:cornerRadius="24dp"
+        app:layout_constraintBottom_toTopOf="@id/dismiss_progress"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/dismiss_progress"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="8dp"
+        android:max="1000"
+        android:visibility="invisible"
+        app:trackThickness="8dp"
+        app:trackCornerRadius="4dp"
         app:layout_constraintBottom_toTopOf="@id/dismiss_button"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
@@ -50,7 +65,7 @@
         android:layout_marginStart="12dp"
         android:layout_marginEnd="12dp"
         android:layout_marginBottom="32dp"
-        android:text="@string/dismiss"
+        android:text="@string/hold_to_dismiss"
         android:textSize="18sp"
         app:cornerRadius="24dp"
         app:layout_constraintBottom_toBottomOf="parent"

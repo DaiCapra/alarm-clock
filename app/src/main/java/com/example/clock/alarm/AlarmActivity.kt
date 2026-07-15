@@ -1,12 +1,17 @@
 package com.example.clock.alarm
 
+import android.animation.ValueAnimator
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.animation.doOnEnd
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -18,6 +23,7 @@ import com.example.clock.displayLabel
 import com.example.clock.hhmmFormatter
 import com.example.clock.tickerFlow
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.Date
@@ -34,6 +40,10 @@ class AlarmActivity : AppCompatActivity() {
 
     private val timeFormat = hhmmFormatter()
 
+    private lateinit var dismissButton: MaterialButton
+    private lateinit var dismissProgress: LinearProgressIndicator
+    private var holdAnimator: ValueAnimator? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showWhenLockedAndTurnScreenOn()
@@ -47,12 +57,17 @@ class AlarmActivity : AppCompatActivity() {
 
         val time: TextView = findViewById(R.id.alarm_time)
         val snooze: MaterialButton = findViewById(R.id.snooze_button)
-        val dismiss: MaterialButton = findViewById(R.id.dismiss_button)
+        dismissButton = findViewById(R.id.dismiss_button)
+        dismissProgress = findViewById(R.id.dismiss_progress)
 
         showLabel()
 
         snooze.setOnClickListener { onSnooze() }
-        dismiss.setOnClickListener { onDismiss() }
+        // The click listener stays the actual dismiss trigger — reached via
+        // performClick() when the hold completes, and directly by TalkBack's
+        // accessibility click action (screen readers skip the hold).
+        dismissButton.setOnClickListener { onDismiss() }
+        setUpHoldToDismiss()
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -68,6 +83,55 @@ class AlarmActivity : AppCompatActivity() {
         startService(
             Intent(this, AlarmService::class.java).apply { action = AlarmService.ACTION_REFRESH }
         )
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // A hold in flight when the screen goes away must not dismiss later.
+        cancelHold()
+    }
+
+    /** Dismiss requires a deliberate press-and-hold; the indicator above the
+     *  button fills over the hold and an early release resets it. */
+    @SuppressLint("ClickableViewAccessibility") // Click path preserved above.
+    private fun setUpHoldToDismiss() {
+        dismissButton.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    startHold()
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    cancelHold()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun startHold() {
+        dismissButton.isPressed = true
+        dismissProgress.visibility = View.VISIBLE
+        holdAnimator = ValueAnimator.ofInt(0, dismissProgress.max).apply {
+            duration = HOLD_TO_DISMISS_MS
+            addUpdateListener { dismissProgress.progress = it.animatedValue as Int }
+            doOnEnd { dismissButton.performClick() } // → onDismiss()
+            start()
+        }
+    }
+
+    private fun cancelHold() {
+        // Strip the end listener before cancelling — cancel() also fires
+        // onAnimationEnd, which must not dismiss.
+        holdAnimator?.apply {
+            removeAllListeners()
+            cancel()
+        }
+        holdAnimator = null
+        dismissButton.isPressed = false
+        dismissProgress.progress = 0
+        dismissProgress.visibility = View.INVISIBLE
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -124,5 +188,9 @@ class AlarmActivity : AppCompatActivity() {
                     android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
             )
         }
+    }
+
+    companion object {
+        private const val HOLD_TO_DISMISS_MS = 1000L
     }
 }
