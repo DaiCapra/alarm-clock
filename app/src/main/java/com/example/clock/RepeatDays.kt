@@ -1,5 +1,21 @@
 package com.example.clock
 
+import com.example.clock.data.Alarm
+
+/**
+ * The weekday bits of an alarm's repeat mask, with any stray high bits dropped.
+ *
+ * Every reader of [Alarm.repeatDays] must go through this: the scheduler and the
+ * receiver deciding "is this alarm repeating?" differently is worse than either
+ * answer alone — a value like 128 would re-arm forever on one side while the
+ * other treated it as a spent one-shot. The DB is cloud-backed-up
+ * (`allowBackup="true"`), so a restored row is not necessarily one this UI wrote.
+ */
+val Alarm.repeatMask: Int get() = repeatDays and ALL_DAYS
+
+/** Whether this alarm repeats, as opposed to firing once. */
+val Alarm.isRepeating: Boolean get() = repeatMask != 0
+
 /**
  * Human-readable summary of an alarm's repeat bitmask (bit 0 = Sunday .. bit 6 =
  * Saturday). Shown under each alarm in the main list.

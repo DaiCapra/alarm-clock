@@ -12,8 +12,8 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * BootReceiver must act only on BOOT_COMPLETED. (The happy path — rescheduling
- * enabled alarms — needs a Hilt test harness and is exercised on-device.)
+ * BootReceiver must act only on BOOT_COMPLETED. Everything it does on a matching
+ * action lives in [AlarmRescheduler] and is covered by [AlarmReschedulerTest].
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])

@@ -9,6 +9,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.clock.alarm.AlarmScheduler
 import com.example.clock.alarm.AlarmService
+import com.example.clock.alarm.AlarmTiming
 import com.example.clock.alarm.RingingState
 import com.example.clock.data.Alarm
 import com.example.clock.data.AppDatabase
@@ -69,7 +70,7 @@ class MainViewModelTest {
         repository = AlarmRepository(db.alarmDao())
         scheduler = AlarmScheduler(context)
         ringingState = RingingState()
-        viewModel = MainViewModel(repository, scheduler, ringingState)
+        viewModel = MainViewModel(context, repository, scheduler, ringingState)
     }
 
     @After
@@ -128,6 +129,28 @@ class MainViewModelTest {
         awaitUntil {
             storedAlarm(alarm.id)?.let { !it.isEnabled && it.snoozeUntil == 0L } == true
         }
+    }
+
+    /**
+     * The list row's toggle listener captures the Alarm from its last bind, so it
+     * can hold a snooze that has since been cleared. Arming from that stale value
+     * would schedule the snooze instant while the database says there is no
+     * snooze — the alarm fires at a time the countdown never showed.
+     */
+    @Test
+    fun setEnabled_true_ignoresAStaleSnoozeOnTheCapturedAlarm() = runTest {
+        val alarm = insert(Alarm(hour = 7, minute = 0, isEnabled = false))
+        val stale = alarm.copy(snoozeUntil = System.currentTimeMillis() + 3 * 60_000)
+        val am = context.getSystemService(AlarmManager::class.java)
+
+        viewModel.setEnabled(stale, true)
+
+        // scheduledAlarms, not nextScheduledAlarm — the latter consumes.
+        awaitUntil { shadowOf(am).scheduledAlarms.isNotEmpty() }
+        val armed = shadowOf(am).scheduledAlarms.last().triggerAtTime
+        val expected = AlarmTiming.nextTrigger(alarm.copy(isEnabled = true, snoozeUntil = 0))
+        assertEquals("Must arm the alarm's real time, not the stale snooze", expected, armed)
+        awaitUntil { storedAlarm(alarm.id)?.snoozeUntil == 0L }
     }
 
     @Test

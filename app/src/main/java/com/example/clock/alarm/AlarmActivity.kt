@@ -3,24 +3,25 @@ package com.example.clock.alarm
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.example.clock.ClockFormatter
 import com.example.clock.R
 import com.example.clock.alarmTriggerMessage
 import com.example.clock.applySystemBarInsetsAsPadding
 import com.example.clock.data.Alarm
 import com.example.clock.displayLabel
-import com.example.clock.hhmmFormatter
 import com.example.clock.tickerFlow
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -38,7 +39,9 @@ class AlarmActivity : AppCompatActivity() {
 
     private lateinit var alarm: Alarm
 
-    private val timeFormat = hhmmFormatter()
+    // Rebuilds itself if the 12/24h setting flips — that doesn't recreate the
+    // Activity, so a formatter fixed at construction would never notice.
+    private val timeFormat by lazy { ClockFormatter(this, withSeconds = false) }
 
     private lateinit var dismissButton: MaterialButton
     private lateinit var dismissProgress: LinearProgressIndicator
@@ -62,6 +65,11 @@ class AlarmActivity : AppCompatActivity() {
 
         showLabel()
 
+        // Back must not leave a ringing alarm behind: MainActivity re-shows this
+        // screen while RingingState is set, so a finish() here only bounces the
+        // user between the two. Snooze and Dismiss are the only ways out.
+        onBackPressedDispatcher.addCallback(this) { }
+
         snooze.setOnClickListener { onSnooze() }
         // The click listener stays the actual dismiss trigger — reached via
         // performClick() when the hold completes, and directly by TalkBack's
@@ -71,7 +79,7 @@ class AlarmActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                tickerFlow().collect { time.text = timeFormat.format(Date()) }
+                tickerFlow().collect { time.text = timeFormat.format(System.currentTimeMillis()) }
             }
         }
     }
@@ -177,17 +185,11 @@ class AlarmActivity : AppCompatActivity() {
     }
 
     private fun showWhenLockedAndTurnScreenOn() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-        } else {
-            @Suppress("DEPRECATION")
-            window.addFlags(
-                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                    android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-            )
-        }
+        setShowWhenLocked(true)
+        setTurnScreenOn(true)
+        // setTurnScreenOn only turns the screen ON; without this the display
+        // times out and goes black while the alarm is still ringing.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     companion object {

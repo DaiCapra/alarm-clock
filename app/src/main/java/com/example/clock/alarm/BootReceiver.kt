@@ -3,7 +3,6 @@ package com.example.clock.alarm
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.example.clock.data.AlarmRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,10 +17,7 @@ import javax.inject.Inject
 class BootReceiver : BroadcastReceiver() {
 
     @Inject
-    lateinit var repository: AlarmRepository
-
-    @Inject
-    lateinit var scheduler: AlarmScheduler
+    lateinit var rescheduler: AlarmRescheduler
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
@@ -30,7 +26,7 @@ class BootReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                repository.getEnabledAlarms().forEach { scheduler.schedule(it) }
+                rescheduler.restoreAll()
             } finally {
                 pending.finish()
             }

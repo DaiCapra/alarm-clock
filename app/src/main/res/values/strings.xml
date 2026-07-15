@@ -13,6 +13,9 @@
     <string name="alarm_menu">Alarm options</string>
     <string name="settings">Settings</string>
     <string name="preview">Preview</string>
+    <string name="previewing">Playing a sample — tap Preview again to stop</string>
+    <string name="alarm_enabled">Alarm on</string>
+    <string name="saved_disabled">Saved. This alarm is off and will not ring.</string>
     <string name="delete">Delete</string>
     <string name="delete_alarm_title">Delete alarm?</string>
     <string name="delete_alarm_message">This alarm will be removed.</string>

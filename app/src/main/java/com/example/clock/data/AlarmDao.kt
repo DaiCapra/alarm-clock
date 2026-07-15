@@ -28,9 +28,23 @@ interface AlarmDao {
     @Delete
     suspend fun delete(alarm: Alarm)
 
-    @Query("UPDATE alarms SET isEnabled = :enabled WHERE id = :id")
+    /** Toggling an alarm always drops any pending snooze — one write, so the
+     *  list never renders a "Snoozed" row whose toggle is already off. */
+    @Query("UPDATE alarms SET isEnabled = :enabled, snoozeUntil = 0 WHERE id = :id")
     suspend fun setEnabled(id: Int, enabled: Boolean)
 
     @Query("UPDATE alarms SET snoozeUntil = :until WHERE id = :id")
     suspend fun setSnoozeUntil(id: Int, until: Long)
+
+    /**
+     * Retire a one-shot alarm that has finished ringing.
+     *
+     * The repeat test lives in SQL against the *stored* row on purpose. A
+     * repeating alarm's snooze re-fire arrives carrying `repeatDays = 0` (see
+     * [com.example.clock.alarm.AlarmScheduler.scheduleSnooze]), so deciding from
+     * the in-flight alarm would permanently disable repeating alarms. `& 127`
+     * mirrors `ALL_DAYS`, keeping this in step with `Alarm.repeatMask`.
+     */
+    @Query("UPDATE alarms SET isEnabled = 0, snoozeUntil = 0 WHERE id = :id AND (repeatDays & 127) = 0")
+    suspend fun disableIfOneShot(id: Int)
 }

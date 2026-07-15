@@ -30,6 +30,25 @@ class AlarmScheduler @Inject constructor(
         setAlarm(alarm, AlarmTiming.nextTrigger(alarm))
     }
 
+    /**
+     * Re-arm [alarm] after a reboot or a clock/timezone change, restoring a
+     * pending snooze along with it.
+     *
+     * Deliberately not [scheduleSnooze]: that recomputes the trigger as
+     * `now + snoozeMinutes`, which would push the snooze back by its full length
+     * on every reboot and every timezone change. A snooze is an absolute instant
+     * and already survives both — only its countdown notification is lost with
+     * the process, so re-post that from the stored value. Re-posting also
+     * re-formats the "rings at" time, which is what a timezone change needs.
+     */
+    fun restore(alarm: Alarm) {
+        val triggerAt = AlarmTiming.nextTrigger(alarm)
+        setAlarm(alarm, triggerAt)
+        if (alarm.snoozeUntil > System.currentTimeMillis()) {
+            showSnoozeNotification(alarm, alarm.snoozeUntil)
+        }
+    }
+
     /** Re-fire [alarm] once after [minutes], keeping its ringtone/vibrate settings
      *  but not repeating (the daily schedule already holds the next occurrence).
      *  Also posts a lock-screen notification counting down to the re-fire. */
@@ -62,7 +81,7 @@ class AlarmScheduler @Inject constructor(
     private fun showSnoozeNotification(alarm: Alarm, triggerAt: Long) {
         createSnoozeChannel()
         val title = "${context.getString(R.string.snoozed)} · ${alarm.displayLabel(context)}"
-        val ringsAt = formatClockTime(triggerAt)
+        val ringsAt = formatClockTime(context, triggerAt)
         val openApp = PendingIntent.getActivity(
             context, alarm.id, Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -96,8 +115,6 @@ class AlarmScheduler @Inject constructor(
     }
 
     private fun createSnoozeChannel() {
-        // Channels exist from API 26; pre-26 notifications ignore the channel id.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             SNOOZE_CHANNEL_ID,
             "Snoozed alarms",

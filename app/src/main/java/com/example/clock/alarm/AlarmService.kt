@@ -24,6 +24,7 @@ import com.example.clock.displayLabel
 import com.example.clock.formatClockTime
 import com.example.clock.data.Alarm
 import com.example.clock.data.AlarmRepository
+import com.example.clock.di.ApplicationScope
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,16 +47,25 @@ class AlarmService : Service() {
     @Inject
     lateinit var ringingState: RingingState
 
+    /** Outlives this service, for writes that must survive its destruction. */
+    @Inject
+    @ApplicationScope
+    lateinit var appScope: CoroutineScope
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
-    // Ids of alarms currently ringing. The first one owns the single sound +
-    // vibration; later concurrent alarms are coalesced into the same session.
-    private val activeAlarmIds = LinkedHashSet<Int>()
-    private var primaryAlarm: Alarm? = null
+    // Alarms currently ringing, in arrival order. The first one owns the single
+    // sound + vibration; later concurrent alarms are coalesced into the same
+    // session. Snooze and dismiss then apply to every alarm in it — silencing
+    // the session while re-arming only the first would drop the others.
+    // Main thread only.
+    private val activeAlarms = LinkedHashMap<Int, Alarm>()
+
+    private val primaryAlarm: Alarm? get() = activeAlarms.values.firstOrNull()
 
     // Bumped whenever a new ringing session starts, so a pending confirmation
     // vibration knows a new alarm has taken over the (shared) system vibrator.
@@ -75,6 +85,14 @@ class AlarmService : Service() {
     var ringtoneStartCount = 0
         private set
 
+    /** Overridable so tests don't have to wait out the real ten minutes. */
+    @VisibleForTesting
+    var autoSilenceMs = AUTO_SILENCE_MS
+
+    /** Outlives [autoSilenceMs] so teardown and the confirmation vibration never
+     *  run on a lapsed lock. Tracks the override above. */
+    private val wakeLockTimeoutMs: Long get() = autoSilenceMs + WAKE_LOCK_GRACE_MS
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -90,7 +108,7 @@ class AlarmService : Service() {
                 // the notification silently — drops the heads-up popup.
                 val primary = primaryAlarm
                 if (primary != null) {
-                    startForeground(NOTIFICATION_ID, buildNotification(primary, activeAlarmIds.size))
+                    startForeground(NOTIFICATION_ID, buildNotification(primary, activeAlarms.size))
                 } else if (!confirmationPending) {
                     // Refresh raced a stop with nothing left to do; a pending
                     // confirmation will otherwise issue the stop itself.
@@ -103,24 +121,22 @@ class AlarmService : Service() {
     }
 
     private fun startRinging(alarm: Alarm) {
-        val firstAlarm = activeAlarmIds.isEmpty()
-        activeAlarmIds.add(alarm.id)
+        val firstAlarm = activeAlarms.isEmpty()
+        activeAlarms[alarm.id] = alarm
 
         if (firstAlarm) {
             sessionGeneration++
             confirmationPending = false
-            primaryAlarm = alarm
             acquireWakeLock()
             ringingState.setRinging(alarm)
-            startForeground(NOTIFICATION_ID, buildNotification(alarm, activeAlarmIds.size))
+            startForeground(NOTIFICATION_ID, buildNotification(alarm, activeAlarms.size))
             playRingtone(alarm.ringtoneUri, alarm.volume)
             if (alarm.vibrate) startVibration()
             scheduleAutoSilence()
         } else {
             // Already ringing: don't stack a second sound — just refresh the
             // notification to reflect the number of alarms going off.
-            val primary = primaryAlarm ?: alarm
-            startForeground(NOTIFICATION_ID, buildNotification(primary, activeAlarmIds.size))
+            startForeground(NOTIFICATION_ID, buildNotification(primaryAlarm ?: alarm, activeAlarms.size))
         }
     }
 
@@ -138,15 +154,18 @@ class AlarmService : Service() {
      *  whose screen never came on. Released in onDestroy (not on teardown) so the
      *  confirmation vibration that plays after the session ends still runs. */
     private fun acquireWakeLock() {
-        if (wakeLock?.isHeld == true) return
-        wakeLock = getSystemService(PowerManager::class.java)
-            ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
-            ?.apply {
-                setReferenceCounted(false)
-                // Backstop: an alarm left ringing (user asleep, missed dismiss)
-                // must not hold the CPU awake indefinitely.
-                acquire(WAKE_LOCK_TIMEOUT_MS)
-            }
+        val lock = wakeLock
+            ?: getSystemService(PowerManager::class.java)
+                ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
+                ?.apply { setReferenceCounted(false) }
+                ?.also { wakeLock = it }
+            ?: return
+        // Always re-acquire rather than skipping when already held: a session
+        // starting inside the previous one's confirmation window would otherwise
+        // inherit its remaining timeout instead of a fresh one. acquire() on a
+        // non-counted lock resets the timeout, so a single release still frees it.
+        // The timeout is a backstop for an alarm nobody ever dismisses.
+        lock.acquire(wakeLockTimeoutMs)
     }
 
     private fun releaseWakeLock() {
@@ -156,8 +175,7 @@ class AlarmService : Service() {
     }
 
     private fun clearSession() {
-        activeAlarmIds.clear()
-        primaryAlarm = null
+        activeAlarms.clear()
         ringingState.clear()
     }
 
@@ -204,8 +222,9 @@ class AlarmService : Service() {
     private fun scheduleAutoSilence() {
         val generation = sessionGeneration
         scope.launch(Dispatchers.Main) {
-            delay(AUTO_SILENCE_MS)
-            if (generation == sessionGeneration && activeAlarmIds.isNotEmpty()) {
+            delay(autoSilenceMs)
+            if (generation == sessionGeneration && activeAlarms.isNotEmpty()) {
+                retireOneShots()
                 tearDownSession()
                 stopSelf(latestStartId)
             }
@@ -213,24 +232,47 @@ class AlarmService : Service() {
     }
 
     private fun stopRinging() {
-        val hadSession = activeAlarmIds.isNotEmpty()
+        val hadSession = activeAlarms.isNotEmpty()
+        retireOneShots()
         tearDownSession()
         if (!hadSession) {
             // Nothing was ringing (e.g. dismiss raced an earlier stop) — no
-            // confirmation to give.
-            stopSelf(latestStartId)
+            // confirmation to give. A confirmation already in flight owns the
+            // stop, and cutting it short would cancel its snooze write too.
+            if (!confirmationPending) stopSelf(latestStartId)
             return
         }
         confirmThenStop { AlarmSounds.playDismissConfirmation(it) }
     }
 
-    /** Snooze the ringing alarm and stop the service (shared by the notification
-     *  action and the ringing screen). */
+    /** A dismissed or auto-silenced one-shot has done its job and must not be
+     *  left armed-looking: it would show a countdown to a trigger that no longer
+     *  exists, and BootReceiver would resurrect it on the next reboot. Repeating
+     *  alarms are spared — the decision is made in SQL against the stored row,
+     *  because a repeating alarm's snooze re-fire reaches us claiming
+     *  repeatDays = 0. Snooze deliberately does not call this: a snoozed alarm
+     *  is still pending. */
+    private fun retireOneShots() {
+        val ids = activeAlarms.keys.filter { it > 0 } // snapshot: main thread only
+        if (ids.isEmpty()) return
+        appScope.launch { ids.forEach { repository.disableIfOneShot(it) } }
+    }
+
+    /** Snooze every alarm in the session and stop the service (shared by the
+     *  notification action and the ringing screen). Each alarm keeps its own
+     *  snooze length; the confirmation reports the primary's. */
     private fun snoozeAndStop(alarm: Alarm) {
-        val triggerAt = scheduler.scheduleSnooze(alarm, alarm.snoozeMinutes)
+        // Coalesced alarms are silenced together, so they must be re-armed
+        // together — re-arming only the tapped one silently drops the rest.
+        val toSnooze = activeAlarms.values.toList().ifEmpty { listOf(alarm) }
+        val triggers = toSnooze.map { it to scheduler.scheduleSnooze(it, it.snoozeMinutes) }
         tearDownSession()
-        // Persist ahead of the scope being cancelled on destroy.
-        val persist = scope.launch { repository.setSnoozeUntil(alarm.id, triggerAt) }
+        // The service is about to stop, so this write cannot live on its scope.
+        val persist = appScope.launch {
+            triggers.forEach { (snoozed, triggerAt) ->
+                if (snoozed.id > 0) repository.setSnoozeUntil(snoozed.id, triggerAt)
+            }
+        }
         confirmThenStop(awaitBeforeStop = persist) {
             AlarmSounds.playSnoozeConfirmation(it)
         }
@@ -273,7 +315,7 @@ class AlarmService : Service() {
         )
 
         val title = if (activeCount > 1) "$activeCount alarms" else alarm.displayLabel(this)
-        val time = formatClockTime(alarm.hour, alarm.minute)
+        val time = formatClockTime(this, alarm.hour, alarm.minute)
         val timeText = SpannableString(time).apply {
             setSpan(StyleSpan(Typeface.BOLD), 0, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             setSpan(RelativeSizeSpan(1.3f), 0, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -304,8 +346,6 @@ class AlarmService : Service() {
     }
 
     private fun createNotificationChannel() {
-        // Channels exist from API 26; pre-26 notifications ignore the channel id.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val silent = NotificationChannel(
             CHANNEL_ID_SILENT,
             "Alarm (app open)",
@@ -339,8 +379,6 @@ class AlarmService : Service() {
         private const val CONFIRMATION_GAP_MS = 250L
         private const val WAKE_LOCK_TAG = "Clock:AlarmService"
         private const val AUTO_SILENCE_MS = 10 * 60 * 1000L
-        // Outlives auto-silence by a minute so teardown and the confirmation
-        // vibration never run on a lapsed lock.
-        private const val WAKE_LOCK_TIMEOUT_MS = AUTO_SILENCE_MS + 60 * 1000L
+        private const val WAKE_LOCK_GRACE_MS = 60 * 1000L
     }
 }

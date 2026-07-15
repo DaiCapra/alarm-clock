@@ -114,6 +114,15 @@
             </LinearLayout>
 
             <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/enabled_switch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:checked="true"
+                android:text="@string/alarm_enabled"
+                android:textStyle="bold" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/vibrate_switch"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

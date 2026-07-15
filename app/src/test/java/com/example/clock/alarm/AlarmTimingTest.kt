@@ -2,6 +2,7 @@ package com.example.clock.alarm
 
 import com.example.clock.data.Alarm
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Calendar
 
@@ -92,5 +93,31 @@ class AlarmTimingTest {
         val late = Alarm(hour = 8, minute = 0, repeatDays = 0b1111111)
         assertEquals(at(day = 8, hour = 6, minute = 0), AlarmTiming.nextTrigger(early, wednesday7am))
         assertEquals(at(day = 7, hour = 8, minute = 0), AlarmTiming.nextTrigger(late, wednesday7am))
+    }
+
+    // --- Garbage masks (the DB is cloud-backed-up, so rows this UI never wrote
+    //     can come back from a restore) ---
+
+    @Test
+    fun repeat_highBitsOnly_treatedAsOneShot() {
+        // Bit 7+ with no weekday bit set. Before masking this fell through the
+        // weekday loop and armed *today* — a time already past, which fires
+        // immediately, reschedules to the same past instant, and loops forever.
+        val alarm = Alarm(hour = 6, minute = 0, repeatDays = 128)
+        assertEquals(at(day = 8, hour = 6, minute = 0), AlarmTiming.nextTrigger(alarm, wednesday7am))
+    }
+
+    @Test
+    fun repeat_garbageMasks_neverReturnATimeInThePast() {
+        val masks = listOf(128, 256, -128, Int.MIN_VALUE, -1, Int.MAX_VALUE)
+        for (mask in masks) {
+            val trigger = AlarmTiming.nextTrigger(
+                Alarm(hour = 6, minute = 0, repeatDays = mask), wednesday7am
+            )
+            assertTrue(
+                "repeatDays=$mask armed $trigger, at or before now ($wednesday7am)",
+                trigger > wednesday7am
+            )
+        }
     }
 }

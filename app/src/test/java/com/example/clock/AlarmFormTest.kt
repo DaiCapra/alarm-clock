@@ -101,8 +101,18 @@ class AlarmFormTest {
     }
 
     @Test
-    fun savedAlarm_isAlwaysEnabled() {
-        assertTrue(build().isEnabled)
+    fun newAlarm_isEnabled() {
+        assertTrue("A freshly created alarm should be armed", build().isEnabled)
+    }
+
+    /** The editor has no enable control, so a save must not double as one:
+     *  fixing the label of an alarm turned off for the winter should not arm it
+     *  for 06:45 tomorrow. */
+    @Test
+    fun disabledAlarm_staysDisabledWhenEdited() {
+        val disabled = base.copy(isEnabled = false)
+
+        assertFalse(build(base = disabled).isEnabled)
     }
 
     @Test

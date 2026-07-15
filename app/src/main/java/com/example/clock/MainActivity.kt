@@ -19,7 +19,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.clock.alarm.AlarmActivity
-import com.example.clock.alarm.AlarmService
 import com.example.clock.alarm.putAlarm
 import com.example.clock.data.Alarm
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -32,6 +31,8 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+
+    private lateinit var preview: RingtonePreview
 
     private val notificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -54,6 +55,8 @@ class MainActivity : AppCompatActivity() {
         val emptyView: View = findViewById(R.id.empty_view)
         val list: RecyclerView = findViewById(R.id.alarm_list)
         val addButton: FloatingActionButton = findViewById(R.id.add_alarm_button)
+
+        preview = RingtonePreview(this, list, RingtonePreview.SAMPLE_CLIP_MS)
 
         val adapter = AlarmAdapter(
             onToggle = { alarm, enabled -> viewModel.setEnabled(alarm, enabled) },
@@ -110,6 +113,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStop() {
+        super.onStop()
+        // Also covers a real alarm arriving mid-preview: it launches the ringing
+        // screen, this stops, and the sample can't play over the alarm.
+        preview.stop()
+    }
+
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         val granted = ContextCompat.checkSelfPermission(
@@ -137,13 +147,16 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    /** Play a bounded sample of the alarm's tone at its volume. Deliberately not
+     *  the real ringing path: that armed an 11-minute wake lock, and its Snooze
+     *  button would arm a genuine alarm and persist snoozeUntil — a "preview"
+     *  that goes off ten minutes later. Tapping again stops it. */
     private fun previewAlarm(alarm: Alarm) {
-        ContextCompat.startForegroundService(
-            this, Intent(this, AlarmService::class.java).putAlarm(alarm)
-        )
-
-        // App is in foreground during preview, so the service's full-screen
-        // intent is suppressed by the system. Launch the ringing view directly.
-        startActivity(Intent(this, AlarmActivity::class.java).putAlarm(alarm))
+        if (preview.isPlaying()) {
+            preview.stop()
+            return
+        }
+        preview.play(alarm.ringtoneUri, alarm.volume)
+        Toast.makeText(this, R.string.previewing, Toast.LENGTH_SHORT).show()
     }
 }

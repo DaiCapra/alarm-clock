@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.example.clock.data.AlarmRepository
+import com.example.clock.isRepeating
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +36,8 @@ class AlarmReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                if (alarm.id >= 0) {
+                // id 0 is the unsaved sentinel; Room's autoGenerate starts at 1.
+                if (alarm.id > 0) {
                     repository.clearSnooze(alarm.id)
                     // Queue a repeating alarm's next occurrence from the stored
                     // record, not the intent copy: a snooze re-fire carries
@@ -44,7 +46,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     // next occurrence armed at the original fire was replaced
                     // and must be re-armed here.
                     repository.getAlarmById(alarm.id)
-                        ?.takeIf { it.isEnabled && it.repeatDays != 0 }
+                        ?.takeIf { it.isEnabled && it.isRepeating }
                         ?.let { scheduler.schedule(it.copy(snoozeUntil = 0)) }
                 }
             } finally {

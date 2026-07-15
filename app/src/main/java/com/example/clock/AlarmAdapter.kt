@@ -37,13 +37,14 @@ class AlarmAdapter(
         private val menu: ImageButton = itemView.findViewById(R.id.alarm_menu)
 
         fun bind(alarm: Alarm) {
-            time.text = formatClockTime(alarm.hour, alarm.minute)
+            val context = itemView.context
+            time.text = formatClockTime(context, alarm.hour, alarm.minute)
             label.text = alarm.label
             label.visibility = if (alarm.label.isEmpty()) View.GONE else View.VISIBLE
 
             if (alarm.snoozeUntil > System.currentTimeMillis()) {
-                val ringsAt = formatClockTime(alarm.snoozeUntil)
-                days.text = itemView.context.getString(R.string.snoozed_rings_at, ringsAt)
+                val ringsAt = formatClockTime(context, alarm.snoozeUntil)
+                days.text = context.getString(R.string.snoozed_rings_at, ringsAt)
             } else {
                 days.text = formatRepeatDays(alarm.repeatDays)
             }

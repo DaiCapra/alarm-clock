@@ -11,21 +11,30 @@ import javax.inject.Singleton
  */
 @Singleton
 class AlarmPrefs @Inject constructor(
-    @ApplicationContext context: Context
+    @ApplicationContext private val context: Context
 ) {
-    private val prefs = context.getSharedPreferences("alarm_prefs", Context.MODE_PRIVATE)
+    // Lazy so that merely constructing this singleton (which Hilt does on the
+    // main thread) doesn't kick off the XML load. Callers read it from IO.
+    private val prefs by lazy {
+        context.getSharedPreferences("alarm_prefs", Context.MODE_PRIVATE)
+    }
 
-    var defaultRingtoneUri: String?
-        get() = prefs.getString(KEY_RINGTONE, null)
-        set(value) = prefs.edit().putString(KEY_RINGTONE, value).apply()
+    val defaultRingtoneUri: String? get() = prefs.getString(KEY_RINGTONE, null)
 
-    var defaultSnoozeMinutes: Int
-        get() = prefs.getInt(KEY_SNOOZE, DEFAULT_SNOOZE)
-        set(value) = prefs.edit().putInt(KEY_SNOOZE, value).apply()
+    val defaultSnoozeMinutes: Int get() = prefs.getInt(KEY_SNOOZE, DEFAULT_SNOOZE)
 
-    var defaultVolume: Int
-        get() = prefs.getInt(KEY_VOLUME, DEFAULT_VOLUME)
-        set(value) = prefs.edit().putInt(KEY_VOLUME, value).apply()
+    val defaultVolume: Int get() = prefs.getInt(KEY_VOLUME, DEFAULT_VOLUME)
+
+    /** Remember these choices as the starting point for the next new alarm. One
+     *  edit, so one disk write — three separate apply()s each queue their own,
+     *  which the next onPause then blocks the main thread waiting on. */
+    fun saveDefaults(alarm: Alarm) {
+        prefs.edit()
+            .putString(KEY_RINGTONE, alarm.ringtoneUri)
+            .putInt(KEY_SNOOZE, alarm.snoozeMinutes)
+            .putInt(KEY_VOLUME, alarm.volume)
+            .apply()
+    }
 
     private companion object {
         const val KEY_RINGTONE = "default_ringtone_uri"

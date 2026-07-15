@@ -12,9 +12,9 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * TimeChangeReceiver must act only on TIMEZONE_CHANGED / TIME_SET. (The happy
- * path — rescheduling enabled alarms — needs a Hilt test harness and is
- * exercised on-device.)
+ * TimeChangeReceiver must act only on TIMEZONE_CHANGED / TIME_SET. Everything it
+ * does on a matching action lives in [AlarmRescheduler] and is covered by
+ * [AlarmReschedulerTest].
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])

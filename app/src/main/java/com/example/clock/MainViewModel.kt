@@ -1,5 +1,6 @@
 package com.example.clock
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.clock.alarm.AlarmScheduler
@@ -8,6 +9,7 @@ import com.example.clock.alarm.RingingState
 import com.example.clock.data.Alarm
 import com.example.clock.data.AlarmRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -25,6 +27,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: AlarmRepository,
     private val scheduler: AlarmScheduler,
     private val ringingState: RingingState
@@ -36,9 +39,9 @@ class MainViewModel @Inject constructor(
     /** The alarm currently ringing, or null. Used to jump to the ringing screen. */
     val ringingAlarm: StateFlow<Alarm?> = ringingState.current
 
-    private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    private val timeFormat = ClockFormatter(context, withSeconds = true)
 
-    val currentTime: Flow<String> = tickerFlow().map { timeFormat.format(Date()) }
+    val currentTime: Flow<String> = tickerFlow().map { timeFormat.format(System.currentTimeMillis()) }
 
     /** Countdown to the soonest enabled alarm (H:MM:SS) and whether that soonest
      *  trigger is a pending snooze. Null when nothing is scheduled. */
@@ -70,15 +73,18 @@ class MainViewModel @Inject constructor(
 
     fun setEnabled(alarm: Alarm, enabled: Boolean) {
         viewModelScope.launch {
+            // setAlarmEnabled also zeroes snoozeUntil, so mirror that here: the
+            // captured `alarm` can carry a snooze from an earlier bind, and
+            // nextTrigger would then arm the stale snooze instead of the real
+            // time — persisting one instant while scheduling another.
             repository.setAlarmEnabled(alarm.id, enabled)
+            val updated = alarm.copy(isEnabled = enabled, snoozeUntil = 0)
             if (enabled) {
-                val active = alarm.copy(isEnabled = true)
-                scheduler.schedule(active)
-                val remaining = AlarmTiming.nextTrigger(active) - System.currentTimeMillis()
+                scheduler.schedule(updated)
+                val remaining = AlarmTiming.nextTrigger(updated) - System.currentTimeMillis()
                 _scheduledMessage.emit(alarmTriggerMessage(remaining))
             } else {
                 scheduler.cancel(alarm)
-                repository.clearSnooze(alarm.id)
                 // If this alarm is ringing right now, stop it too.
                 if (ringingState.current.value?.id == alarm.id) scheduler.dismissRinging()
             }

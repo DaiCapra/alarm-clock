@@ -8,8 +8,15 @@ import com.example.clock.data.Alarm
  */
 object AlarmForm {
 
-    /** @param dayChecked size-7 list, index 0 = Sunday .. index 6 = Saturday.
-     *  The ringtone is carried over from [base] (the picker mutates the draft). */
+    /**
+     * @param dayChecked size-7 list, index 0 = Sunday .. index 6 = Saturday.
+     * @param isEnabled the editor's own switch — a save must never double as an
+     *  enable, so this is passed in rather than forced true. The ringtone is
+     *  carried over from [base] (the picker mutates the draft).
+     *
+     * Any pending snooze is dropped: the edited alarm is a different alarm, and
+     * the caller cancels the snooze trigger alongside this.
+     */
     fun buildAlarm(
         base: Alarm,
         hour: Int,
@@ -18,7 +25,8 @@ object AlarmForm {
         dayChecked: List<Boolean>,
         vibrate: Boolean,
         snoozeMinutes: Int,
-        volume: Int
+        volume: Int,
+        isEnabled: Boolean = base.isEnabled
     ): Alarm {
         var days = 0
         dayChecked.forEachIndexed { index, on -> if (on) days = days or (1 shl index) }
@@ -31,11 +39,18 @@ object AlarmForm {
             snoozeMinutes = snoozeMinutes,
             volume = volume.coerceIn(0, 100),
             snoozeUntil = 0,
-            isEnabled = true
+            isEnabled = isEnabled
         )
     }
 
-    /** Extract the leading integer from a "10 min" dropdown value, else [default]. */
+    /** The digits of a "10 min" dropdown value, else [default]. Coerced to a sane
+     *  range: a 0-minute snooze would re-fire instantly, forever. */
     fun parseSnoozeMinutes(text: String, default: Int): Int =
-        text.filter { it.isDigit() }.toIntOrNull() ?: default
+        text.filter { it.isDigit() }.toIntOrNull()
+            ?.takeIf { it > 0 }
+            ?.coerceAtMost(MAX_SNOOZE_MINUTES)
+            ?: default
+
+    /** An hour is already far past useful; beyond this it's a corrupt value. */
+    private const val MAX_SNOOZE_MINUTES = 60
 }

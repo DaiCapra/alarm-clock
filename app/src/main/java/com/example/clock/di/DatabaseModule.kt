@@ -2,6 +2,7 @@ package com.example.clock.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
 import com.example.clock.data.AlarmDao
 import com.example.clock.data.AppDatabase
 import dagger.Module
@@ -15,13 +16,23 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
 
+    /**
+     * No destructive fallback: a schema change without a matching migration must
+     * fail loudly at open rather than silently deleting every alarm the user set.
+     *
+     * To change the schema: bump `AppDatabase.version`, add a [Migration] to
+     * [MIGRATIONS], and commit the regenerated `app/schemas/…/<version>.json`.
+     * `MigrationTest` walks the chain against those files.
+     */
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "clock.db")
-            // No releases yet: recreate the DB on any schema change.
-            .fallbackToDestructiveMigration(dropAllTables = true)
+            .addMigrations(*MIGRATIONS)
             .build()
+
+    /** Ordered v(n) -> v(n+1) steps. Empty while the schema is still at v1. */
+    val MIGRATIONS: Array<Migration> = emptyArray()
 
     @Provides
     fun provideAlarmDao(db: AppDatabase): AlarmDao = db.alarmDao()

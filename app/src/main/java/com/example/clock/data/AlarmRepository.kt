@@ -25,4 +25,8 @@ class AlarmRepository @Inject constructor(
     suspend fun setSnoozeUntil(id: Int, until: Long) = dao.setSnoozeUntil(id, until)
 
     suspend fun clearSnooze(id: Int) = dao.setSnoozeUntil(id, 0)
+
+    /** Retire a one-shot alarm that has finished ringing; repeating alarms are
+     *  left alone. See [AlarmDao.disableIfOneShot]. */
+    suspend fun disableIfOneShot(id: Int) = dao.disableIfOneShot(id)
 }
