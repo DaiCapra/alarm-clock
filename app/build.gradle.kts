@@ -12,7 +12,7 @@ ksp {
 }
 
 android {
-    namespace = "com.example.clock"
+    namespace = "io.github.artmann.clock"
     compileSdk = 36
 
     buildFeatures {
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.clock"
+        applicationId = "io.github.artmann.clock"
         // 28+: Ringtone.setLooping/setVolume are API 28, and an alarm that can
         // neither loop nor honour its volume isn't an alarm.
         minSdk = 28

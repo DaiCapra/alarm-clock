@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Clock"
+rootProject.name = "AlarmClock"
 include(":app")
