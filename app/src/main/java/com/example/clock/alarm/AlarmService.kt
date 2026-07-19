@@ -85,7 +85,7 @@ class AlarmService : Service() {
     var ringtoneStartCount = 0
         private set
 
-    /** Overridable so tests don't have to wait out the real ten minutes. */
+    /** Overridable so tests don't have to wait out the real minute. */
     @VisibleForTesting
     var autoSilenceMs = AUTO_SILENCE_MS
 
@@ -215,7 +215,11 @@ class AlarmService : Service() {
 
     /** Safety valve: an alarm nobody dismisses (owner not home, phone under a
      *  pillow) must not ring — sound, vibration, CPU held awake — indefinitely.
-     *  Silences the session after [AUTO_SILENCE_MS], like stock clock apps.
+     *  Silences the session after [AUTO_SILENCE_MS], like stock clock apps, and
+     *  otherwise behaves exactly like a dismiss: same retirement, same
+     *  confirmation, and clearing [ringingState] closes the ringing screen.
+     *  What it adds is a missed-alarm notification, the only trace left that
+     *  the alarm ever fired.
      *  Runs on Main because it mutates the same session state as the intent
      *  handlers; the generation check makes it a no-op if this session already
      *  ended or a new one took over. */
@@ -223,11 +227,33 @@ class AlarmService : Service() {
         val generation = sessionGeneration
         scope.launch(Dispatchers.Main) {
             delay(autoSilenceMs)
-            if (generation == sessionGeneration && activeAlarms.isNotEmpty()) {
-                retireOneShots()
-                tearDownSession()
-                stopSelf(latestStartId)
-            }
+            if (generation != sessionGeneration || activeAlarms.isEmpty()) return@launch
+            // Both of these read activeAlarms, which tearDownSession clears.
+            showMissedNotifications()
+            retireOneShots()
+            tearDownSession()
+            confirmThenStop { AlarmSounds.playDismissConfirmation(it) }
+        }
+    }
+
+    /** One notification per one-shot alarm that rang out. Repeating alarms are
+     *  left alone — they ring again on their next day, so a missed notice would
+     *  be noise. */
+    private fun showMissedNotifications() {
+        val missed = activeAlarms.values.filter { it.repeatDays == 0 }
+        if (missed.isEmpty()) return
+        createMissedChannel()
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        missed.forEach { alarm ->
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID_MISSED)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle(getString(R.string.alarm_missed))
+                .setContentText(getString(R.string.alarm_missed_text, alarm.displayLabel(this)))
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setAutoCancel(true)
+                .build()
+            notificationManager.notify(MISSED_NOTIFICATION_BASE + alarm.id, notification)
         }
     }
 
@@ -368,6 +394,20 @@ class AlarmService : Service() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
+    /** Created lazily — most sessions end in a dismiss and never post here. */
+    private fun createMissedChannel() {
+        val channel = NotificationChannel(
+            CHANNEL_ID_MISSED,
+            "Missed alarms",
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "Shown when an alarm rang out with no response"
+            setSound(null, null)
+            enableVibration(false)
+        }
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    }
+
     companion object {
         const val ACTION_DISMISS = "action_dismiss"
         const val ACTION_SNOOZE = "action_snooze"
@@ -378,7 +418,15 @@ class AlarmService : Service() {
         private const val SNOOZE_REQUEST_OFFSET = 1_000_000
         private const val CONFIRMATION_GAP_MS = 250L
         private const val WAKE_LOCK_TAG = "Clock:AlarmService"
-        private const val AUTO_SILENCE_MS = 10 * 60 * 1000L
+        private const val AUTO_SILENCE_MS = 60 * 1000L
         private const val WAKE_LOCK_GRACE_MS = 60 * 1000L
+
+        @VisibleForTesting
+        const val CHANNEL_ID_MISSED = "missed_channel"
+
+        /** Above [NOTIFICATION_ID] and [AlarmScheduler]'s snooze base, so a
+         *  missed notification never overwrites either. */
+        @VisibleForTesting
+        const val MISSED_NOTIFICATION_BASE = 3000
     }
 }

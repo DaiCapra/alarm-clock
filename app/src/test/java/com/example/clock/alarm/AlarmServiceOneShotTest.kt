@@ -1,5 +1,6 @@
 package com.example.clock.alarm
 
+import android.app.NotificationManager
 import android.os.Looper
 import com.example.clock.ALL_DAYS
 import com.example.clock.awaitUntil
@@ -137,6 +138,71 @@ class AlarmServiceOneShotTest : AlarmServiceTestBase() {
             "Still ringing halfway to auto-silence",
             alarm.id, service.ringingState.current.value?.id
         )
+    }
+
+    private fun missedNotification(alarmId: Int) =
+        shadowOf(context.getSystemService(NotificationManager::class.java))
+            .getNotification(AlarmService.MISSED_NOTIFICATION_BASE + alarmId)
+
+    /** Auto-silence removes the ringing notification and leaves nothing behind,
+     *  so without this the user has no way to learn the alarm ever fired. */
+    @Test
+    fun autoSilence_postsAMissedNotificationForAOneShot() {
+        val alarm = store(Alarm(hour = 7, minute = 0, repeatDays = 0))
+        service.autoSilenceMs = 50
+        service.onStartCommand(startIntent(alarm), 0, 1)
+
+        elapse(60)
+
+        assertTrue(
+            "Auto-silencing a one-shot must leave a missed-alarm notification",
+            missedNotification(alarm.id) != null
+        )
+    }
+
+    /** A repeating alarm rings again on its next day, so a missed notice would
+     *  just be noise. */
+    @Test
+    fun autoSilence_postsNoMissedNotificationForARepeatingAlarm() {
+        val alarm = store(Alarm(hour = 7, minute = 0, repeatDays = ALL_DAYS))
+        service.autoSilenceMs = 50
+        service.onStartCommand(startIntent(alarm), 0, 1)
+
+        elapse(60)
+
+        assertEquals(
+            "A repeating alarm must not be reported as missed",
+            null, missedNotification(alarm.id)
+        )
+    }
+
+    /** A dismiss the user actually performed is not a miss. */
+    @Test
+    fun dismiss_postsNoMissedNotification() {
+        val alarm = store(Alarm(hour = 7, minute = 0, repeatDays = 0))
+        service.onStartCommand(startIntent(alarm), 0, 1)
+
+        service.onStartCommand(dismissIntent(), 0, 2)
+
+        assertEquals(
+            "A dismissed alarm was not missed",
+            null, missedNotification(alarm.id)
+        )
+    }
+
+    /** Auto-silence ends the session the same way a dismiss does — including the
+     *  confirmation buzz — so the two paths stay indistinguishable. */
+    @Test
+    fun autoSilence_stopsTheServiceLikeADismiss() {
+        val alarm = store(Alarm(hour = 7, minute = 0, repeatDays = 0))
+        service.autoSilenceMs = 50
+        service.onStartCommand(startIntent(alarm), 0, 1)
+
+        elapse(60)
+
+        awaitUntil(message = "Auto-silence did not stop the service") {
+            shadowOf(service).isStoppedBySelf
+        }
     }
 
     /** Two alarms coalesce into one session; both are one-shots, so dismissing

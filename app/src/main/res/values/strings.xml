@@ -10,6 +10,8 @@
     <string name="snoozed_rings_at">Snoozed · rings %1$s</string>
     <string name="dismiss">Dismiss</string>
     <string name="hold_to_dismiss">Hold to dismiss</string>
+    <string name="alarm_missed">Alarm missed</string>
+    <string name="alarm_missed_text">%1$s rang with no response</string>
     <string name="alarm_menu">Alarm options</string>
     <string name="settings">Settings</string>
     <string name="preview">Preview</string>

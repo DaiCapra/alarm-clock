@@ -26,8 +26,11 @@ import com.example.clock.tickerFlow
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Date
+import javax.inject.Inject
 
 /**
  * Full-screen alarm view shown when an alarm fires. Displays the live time and
@@ -36,6 +39,9 @@ import java.util.Date
  */
 @AndroidEntryPoint
 class AlarmActivity : AppCompatActivity() {
+
+    @Inject
+    lateinit var ringingState: RingingState
 
     private lateinit var alarm: Alarm
 
@@ -80,6 +86,20 @@ class AlarmActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 tickerFlow().collect { time.text = timeFormat.format(System.currentTimeMillis()) }
+            }
+        }
+
+        // The session can end without this screen asking for it — auto-silence,
+        // or a dismiss from the notification action. Back is disabled here, so
+        // without this the screen would strand the user on a dead alarm. Wait
+        // for the ringing state to be set first: this Activity can be created
+        // before the service publishes it, and an unlatched null would close it
+        // immediately.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                ringingState.current.filterNotNull().first()
+                ringingState.current.first { it == null }
+                if (!isFinishing) finish()
             }
         }
     }
